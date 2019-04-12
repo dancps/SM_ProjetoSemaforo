@@ -2,35 +2,40 @@
 //Alteracoes e adaptacoes : FILIPEFLOP
 //
 //Baseado no programa original de JohnChi
+//
+//			FUNCIONANDO
+//
 
+//Pinos de conexao I2C
 #define SDA_PIN 21
 #define SCL_PIN 22
+//Endereco I2C do MPU6050
+#define MPU 0x68  
  
 //Carrega a biblioteca Wire
 #include "Wire.h"
 #include "HardwareSerial.h"
 
+//Inicializa uma comunicacao serial
 HardwareSerial UART(0);
 
-//Endereco I2C do MPU6050
-const int MPU=0x68;  
 //Variaveis para armazenar valores dos sensores
 int AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
 void setup()
 {
     UART.begin(115200);
     //Inicializa o LCD
-    Wire.begin(SDA_PIN,SCL_PIN);// tb é possível passar um 3o argumento com a I2C Bus Speed
-    /*Wire.beginTransmission(MPU);
+    Wire.begin(SDA_PIN,SCL_PIN); // tb é possível passar um 3o argumento com a I2C Bus Speed
+    Wire.beginTransmission(MPU);
     Wire.write(0x6B); 
      
     //Inicializa o MPU-6050
     Wire.write(0); 
-    Wire.endTransmission(true);*/
+    Wire.endTransmission(true);
 }
 
 void loop(){
-    /*Wire.beginTransmission(MPU);
+    Wire.beginTransmission(MPU);
     Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
     Wire.endTransmission(false);
     //Solicita os dados do sensor
@@ -49,8 +54,7 @@ void loop(){
     
     //Envia valor Y do acelerometro para a serial e o LCD
     UART.print(" | AcY = "); UART.print(AcY);
-    
-     
+   	
     //Envia valor Z do acelerometro para a serial e o LCD
     UART.print(" | AcZ = "); UART.print(AcZ);
     
@@ -68,7 +72,7 @@ void loop(){
     UART.print(" | GyZ = "); UART.println(GyZ);
      
     //Aguarda 300 ms e reinicia o processo
-    delay(300);*/
+    delay(300);
 }
 
 /*
