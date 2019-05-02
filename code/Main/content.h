@@ -3,6 +3,15 @@
 //para o display OLED SSD1306
 //https://techtutorialsx.com/2017/12/02/esp32-arduino-interacting-with-a-ssd1306-oled-display/)
 //alimentação pela 3.3V
+//
+//+============ MPU6050 ====================+
+//    Alteracoes e adaptacoes : FILIPEFLOP
+//    
+//     Também usei como referência a biblioteca
+//     de Korneliusz Jarzębski.
+//    
+//    Baseado no programa original de JohnChi
+//+=========================================+
 
 #include <Wire.h> //biblioteca para trabalhar com protocolo I2C //SDA->D21, SCL->D22
 #include <Ultrasonic.h> //para o SR04, que opera em 5V
