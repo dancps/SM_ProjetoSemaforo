@@ -7,27 +7,25 @@ SR04 ultrassom;
 SDCard microSD;
 MPU6050 acelerometro;
 CloudService ts;
-unsigned long initTime;
+unsigned long tempoInicial;
 
 void setup() {
   Serial.begin(115200);
   u8g2.begin();
-  pinMode(farolMotorista.vermelho, OUTPUT);
-  pinMode(farolMotorista.amarelo, OUTPUT);
-  pinMode(farolMotorista.verde, OUTPUT);
-  pinMode(farolPedestre.vermelho, OUTPUT);
-  pinMode(farolPedestre.verde, OUTPUT);
+  configuraFarois();
   //microSD.iniciar();
+  tempoInicial = millis();
+  Serial.print("Tempo de init microSD: ");
+  Serial.println(millis() - tempoInicial);
   acelerometro.init();
-  ts.init(acelerometro.AcX_norm,acelerometro.AcY_norm,acelerometro.AcZ_norm,acelerometro.Tmp_norm,acelerometro.GyX_norm,acelerometro.GyY_norm,acelerometro.GyZ_norm);
-  initTime = millis();
+  //ts.init(acelerometro.AcX_norm,acelerometro.AcY_norm,acelerometro.AcZ_norm,acelerometro.Tmp_norm,acelerometro.GyX_norm,acelerometro.GyY_norm,acelerometro.GyZ_norm);
 }
 
 void loop() {
-  /*Serial.println(ultrassom.distancia());
+  //Serial.println(ultrassom.distancia());  //PL REACTIVATE
   farolMotorista.alternaLuz(farolMotorista.vermelho, farolMotorista.verde);
   tela.exibe(1, farolMotorista.msgVerde); //primeiro parâmetro informa ajuste de fonte
-  delay(1000);
+  delay(1000);  //esse delay é colocado aqui para excluir um certo segundo antes da contagem
   tela.contagem(((int)farolMotorista.tempoVerde/1000)-1); //substitui a contagem comum de luzVerde
   delay(TEMPO_MUDANCA_MODAL); //trata do espaço entre uma mudança do principal com relacao ao pedestre
   farolPedestre.alternaLuz(farolPedestre.verde, farolPedestre.vermelho);
@@ -39,17 +37,43 @@ void loop() {
   tela.exibe(1, farolMotorista.msgVermelho);
   delay(TEMPO_MUDANCA_MODAL);
   farolPedestre.alternaLuz(farolPedestre.vermelho, farolPedestre.verde);
-  delay(farolMotorista.tempoVermelho);  //tinha sido substituido pelo tempo de avaliar pedestre passando
-  //for (int i=0; i < 10; i++) {  //voltar depois ao sr04 para dar um jeito nele
-  //  ultrassom.distancia();
-  //  delay(300);
-  //}
+  long tempoInicial2 = millis(); //comeca contagem de demora de analise para descontar no resto de tempo
+  analiseTrafego(); //gera um coeficiente que pode adicionar até 100% do tempo padrao
+  long tempoFinal = millis();
+  int desconto = tempoFinal-tempoInicial2;
+  delay(farolPedestre.tempoVermelho+(farolPedestre.tempoVermelho*farolPedestre.coeficienteFluxo)-desconto); //até 2x o original
+  //é tempo original + de 0 a 1x o tempo original, e o desconto da análise
+
+  
   farolPedestre.alternaLuz(farolPedestre.verde, farolPedestre.vermelho);
-  farolPedestre.vermelhoPiscante(3000);*/
+  farolPedestre.vermelhoPiscante(3000);
+  
   
   //Lê valores do acelerometro e atualiza suas variaveis
   acelerometro.read();
+  acelerometro.print();
   //Atualiza valores no Thingspeak a cada 20 segundos
-  if((millis() - initTime)%20000==0) ts.sendValues(acelerometro.AcX_norm,acelerometro.AcY_norm,acelerometro.AcZ_norm,acelerometro.Tmp_norm,acelerometro.GyX_norm,acelerometro.GyY_norm,acelerometro.GyZ_norm);
+  if((millis() - tempoInicial)%20000==0) ts.sendValues(acelerometro.AcX_norm,acelerometro.AcY_norm,acelerometro.AcZ_norm,acelerometro.Tmp_norm,acelerometro.GyX_norm,acelerometro.GyY_norm,acelerometro.GyZ_norm);
 
 }
+
+void configuraFarois() {
+  pinMode(farolMotorista.vermelho, OUTPUT);
+  pinMode(farolMotorista.amarelo, OUTPUT);
+  pinMode(farolMotorista.verde, OUTPUT);
+  pinMode(farolPedestre.vermelho, OUTPUT);
+  pinMode(farolPedestre.verde, OUTPUT);
+}
+
+void analiseTrafego() { //essa logica basicamente trata de incrementar em até 1x o tempo do pedestre
+  int numeroRodadasPedestres = 5;
+  for (int i=0; i < numeroRodadasPedestres; i++) {  //voltar depois ao sr04 para dar um jeito nele
+    ultrassom.distancia();
+    if(ultrassom.distanciaAtual < 10) {
+      farolPedestre.coeficienteFluxo++;
+    }
+    delay(TEMPO_AMOSTRAS_PASSAGEM_PEDESTRE);
+  }
+  farolPedestre.coeficienteFluxo = farolPedestre.coeficienteFluxo/numeroRodadasPedestres;
+  //vai dar de 0 a 1...
+ }
