@@ -158,13 +158,13 @@ struct CloudService {
         ThingSpeak.setField(7, (float)GyZ_ts);
 
         // figure out the status message
-        if(abs(AcX_ts-AcX_init) > 0.8){
+        if(abs(AcX_ts-AcX_init) > 1.8){
             myStatus = String("O poste está caido[x-axis]");
         }
-        else if(abs(AcY_ts-AcY_init) > 0.8){
+        else if(abs(AcY_ts-AcY_init) > 1.8){
             myStatus = String("O poste está caido[y-axis]");
         }
-        else if(abs(AcZ_ts-AcZ_init) > 0.8){
+        else if(abs(AcZ_ts-AcZ_init) > 1.8){
             myStatus = String("O poste está caido[z-axis]");
         }
         else{
@@ -334,7 +334,10 @@ struct TelaOLED {
   void contagem(int tempo) {
     for (int i = tempo; i >= 0; i--) {
       exibe(2, String(i));
-      delayMicroseconds(1000000);
+      int ini = millis();
+      //delayMicroseconds(1000000);
+      while(millis()-ini<1000){
+      }
     }
     exibe(2, "...");
   }
@@ -360,20 +363,239 @@ struct SR04 {
 struct SDCard {
 
 
-void iniciar() {
-randomSeed(analogRead(0));
-    if(!SD.begin()) {
-        Serial.println("Incapaz de montar o microSD");
-        return;
-    }
-    uint8_t cardType = SD.cardType();
+    void iniciar() {
+    //randomSeed(analogRead(0));
+        if(!SD.begin()) {
+            Serial.println("Incapaz de montar o microSD");
+            return;
+        }
+        uint8_t cardType = SD.cardType();
 
-    if(cardType == CARD_NONE) {
-        Serial.println("Nenhum cartao de memoria encontrado");
-        return;
+        if(cardType == CARD_NONE) {
+            Serial.println("Nenhum cartao de memoria encontrado");
+            return;
+        }
+
+        if(debug){Serial.print(F("Tipo de cartao de memoria: "));
+            if(cardType == CARD_MMC) {
+                Serial.print("MMC;");
+                return;
+            } else if(cardType == CARD_SD) {
+                Serial.print("SDSC;");
+            } else if(cardType == CARD_SDHC) {
+                Serial.print("SDHC;");
+            } else {
+                Serial.print("UNKNOWN;");
+        }}
+
+        uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+        if(debug) Serial.printf(" Capacidade: %lluMB\n", cardSize);
+        if(debug) separadorTarefa();
+
+        //deleteFile(SD, "/log.txt");
+        if(debug) separadorTarefa();
+        
+        if(debug) listDir(SD, "/", 0);
+        if(debug) separadorTarefa();
+        
+        Serial.println("Tentando criar o arquivo...");
+        writeFile(SD, "/log.txt", "\n\nInicio:\n"); 
+        if(debug) separadorTarefa();
+        
+        if(debug) listDir(SD, "/", 0);
+        if(debug) separadorTarefa();
+        
+        if(debug) {
+            for (int i = 0; i < 3; i++) {
+              appendFile(SD, "/log.txt", "Registrado com sucesso!\n");
+            }
+            separadorTarefa();
+        }
+
+        if(debug) {
+            listDir(SD, "/", 0);
+            separadorTarefa();
+        }
+
+        if(debug) {
+            readFile(SD, "/log.txt");
+            separadorTarefa();
+        }
+        
+        //testFileIO(SD, "/test.txt");
+
+        //deleteFile(SD, "/test.txt"); //remover depois
+        //separadorTarefa();
     }
 
-    if(debug){Serial.print(F("Tipo de cartao de memoria: "));
+    void separadorTarefa() {
+      Serial.println("\n___________________________________________");
+    }
+
+    void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
+        Serial.printf("Listing directory: %s\n", dirname);
+
+        File root = fs.open(dirname);
+        if(!root) {
+            Serial.println("Failed to open directory");
+            return;
+        }
+        if(!root.isDirectory()) {
+            Serial.println("Not a directory");
+            return;
+        }
+
+        File file = root.openNextFile();
+        while(file) {
+            if(file.isDirectory()) {
+                Serial.print(" DIR : ");
+                Serial.println(file.name());
+                if(levels) {
+                    listDir(fs, file.name(), levels -1);
+                }
+            } else {
+                Serial.print(" FILE: ");
+                Serial.print(file.name());
+                Serial.print(" SIZE: ");
+                Serial.println(file.size());
+            }
+            file = root.openNextFile();
+        }
+    }
+
+    //era o createDir
+    //era o removeDir
+
+    void readFile(fs::FS &fs, const char * path) {
+        if(debug) Serial.printf("Reading file: %s\n", path);
+
+        File file = fs.open(path);
+        if(!file) {
+            if(debug) Serial.println("Failed to open file for reading");
+            return;
+        }
+
+        if(debug) Serial.print("Read from file: ");
+        while(file.available()) {
+            Serial.write(file.read());
+        }
+    }
+
+    void writeFile(fs::FS &fs, const char * path, const char * message) {
+        if(debug) Serial.printf("Writing file: %s\n", path);
+
+        File file = fs.open(path, FILE_WRITE);
+        if(!file) {
+            if(debug) Serial.println("Failed to open file for writing");
+            return;
+        }
+        if(file.print(message)) {
+            if(debug) Serial.println("File written");
+        } else {
+            if(debug) Serial.println("Write failed");
+        }
+    }
+
+    void appendFile(fs::FS &fs, const char * path, const char * message) {
+        if(debug) Serial.printf("Appending to file: %s\n", path);
+
+        File file = fs.open(path, FILE_APPEND);
+        if(!file) {
+            if(debug) Serial.println("Failed to open file for appending");
+
+            return;
+        }
+        if(file.print(message)) {
+            if(debug) Serial.println("Message appended");
+        } else {
+            if(debug) Serial.println("Append failed");
+        }
+    }
+
+    void appendFileWithoutPrint(fs::FS &fs, const char * path, const char * message) { //derivada da appendFile que desliga os prints
+        if(debug) Serial.printf("Appending to file: %s\n", path);
+
+        File file = fs.open(path, FILE_APPEND);
+        if(!file) {
+            if(debug) Serial.println("Failed to open file for appending");
+            return;
+        }
+        if(file.print(message)) {
+            if(debug) Serial.println("Message appended");
+        } else {
+            if(debug) Serial.println("Append failed");
+        }
+    }
+
+    //era o renameFile
+
+    void deleteFile(fs::FS &fs, const char * path) {
+        if(debug) Serial.printf("Deleting file: %s\n", path);
+        if(fs.remove(path)) {
+            if(debug) Serial.println("File deleted");
+        } else {
+            if(debug) Serial.println("Delete failed");
+        }
+    }
+
+    void testFileIO(fs::FS &fs, const char * path) {
+        File file = fs.open(path);
+        static uint8_t buf[512];
+        size_t len = 0;
+        uint32_t start = millis();
+        uint32_t end = start;
+        if(file) {
+            len = file.size();
+            size_t flen = len;
+            start = millis();
+            while(len) {
+                size_t toRead = len;
+                if(toRead > 512) {
+                    toRead = 512;
+                }
+                file.read(buf, toRead);
+                len -= toRead;
+            }
+            end = millis() - start;
+            if(debug) Serial.printf("%u bytes read for %u ms\n", flen, end);
+            file.close();
+        } else {
+            if(debug) Serial.println("Failed to open file for reading");
+        }
+
+        file = fs.open(path, FILE_WRITE);
+        if(!file) {
+            if(debug) Serial.println("Failed to open file for writing");
+            return;
+        }
+
+        size_t i;
+        start = millis();
+        for(i=0; i<2048; i++) {
+            file.write(buf, 512);
+        }
+        end = millis() - start;
+        if(debug) Serial.printf("%u bytes written for %u ms\n", 2048 * 512, end);
+        file.close();
+    }
+
+
+
+    /*void setup() {
+        randomSeed(analogRead(0));
+        delay(1000);
+        Serial.begin(115200);
+        Serial.print("\n\n");
+        if(!SD.begin()) {
+            Serial.println("Incapaz de montar o microSD");
+            return;
+        }
+        uint8_t cardType = SD.cardType();
+        if(cardType == CARD_NONE) {
+            Serial.println("Nenhum cartao de memoria encontrado");
+            return;
+        }
+        Serial.print(F("Tipo de cartao de memoria: "));
         if(cardType == CARD_MMC) {
             Serial.print("MMC;");
             return;
@@ -383,253 +605,36 @@ randomSeed(analogRead(0));
             Serial.print("SDHC;");
         } else {
             Serial.print("UNKNOWN;");
-    }}
-
-    uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-    if(debug) Serial.printf(" Capacidade: %lluMB\n", cardSize);
-    if(debug) separadorTarefa();
-
-    deleteFile(SD, "/log.txt");
-    if(debug) separadorTarefa();
-    
-    if(debug) listDir(SD, "/", 0);
-    if(debug) separadorTarefa();
-    
-    writeFile(SD, "/log.txt", "\n\nInicio:\n");
-    if(debug) separadorTarefa();
-    
-    if(debug) listDir(SD, "/", 0);
-    if(debug) separadorTarefa();
-    
-    if(debug) {
+        }
+        uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+        Serial.printf(" Capacidade: %lluMB\n", cardSize);
+        separadorTarefa();
+        deleteFile(SD, "/log.txt");
+        separadorTarefa();
+        
+        listDir(SD, "/", 0);
+        separadorTarefa();
+        
+        writeFile(SD, "/log.txt", "\n\nInicio:\n");
+        separadorTarefa();
+        
+        listDir(SD, "/", 0);
+        separadorTarefa();
+        
         for (int i = 0; i < 3; i++) {
           appendFile(SD, "/log.txt", "Registrado com sucesso!\n");
         }
         separadorTarefa();
-    }
-
-    if(debug) {
         listDir(SD, "/", 0);
         separadorTarefa();
-    }
-
-    if(debug) {
         readFile(SD, "/log.txt");
         separadorTarefa();
+        
+        //testFileIO(SD, "/test.txt");
+        //deleteFile(SD, "/test.txt"); //remover depois
+        //separadorTarefa();
+        
     }
-    
-    //testFileIO(SD, "/test.txt");
-
-    //deleteFile(SD, "/test.txt"); //remover depois
-    //separadorTarefa();
-}
-
-void separadorTarefa() {
-  Serial.println("\n___________________________________________");
-}
-
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
-    Serial.printf("Listing directory: %s\n", dirname);
-
-    File root = fs.open(dirname);
-    if(!root) {
-        Serial.println("Failed to open directory");
-        return;
-    }
-    if(!root.isDirectory()) {
-        Serial.println("Not a directory");
-        return;
-    }
-
-    File file = root.openNextFile();
-    while(file) {
-        if(file.isDirectory()) {
-            Serial.print(" DIR : ");
-            Serial.println(file.name());
-            if(levels) {
-                listDir(fs, file.name(), levels -1);
-            }
-        } else {
-            Serial.print(" FILE: ");
-            Serial.print(file.name());
-            Serial.print(" SIZE: ");
-            Serial.println(file.size());
-        }
-        file = root.openNextFile();
-    }
-}
-
-//era o createDir
-//era o removeDir
-
-void readFile(fs::FS &fs, const char * path) {
-    if(debug) Serial.printf("Reading file: %s\n", path);
-
-    File file = fs.open(path);
-    if(!file) {
-        if(debug) Serial.println("Failed to open file for reading");
-        return;
-    }
-
-    if(debug) Serial.print("Read from file: ");
-    while(file.available()) {
-        Serial.write(file.read());
-    }
-}
-
-void writeFile(fs::FS &fs, const char * path, const char * message) {
-    if(debug) Serial.printf("Writing file: %s\n", path);
-
-    File file = fs.open(path, FILE_WRITE);
-    if(!file) {
-        if(debug) Serial.println("Failed to open file for writing");
-        return;
-    }
-    if(file.print(message)) {
-        if(debug) Serial.println("File written");
-    } else {
-        if(debug) Serial.println("Write failed");
-    }
-}
-
-void appendFile(fs::FS &fs, const char * path, const char * message) {
-    if(debug) Serial.printf("Appending to file: %s\n", path);
-
-    File file = fs.open(path, FILE_APPEND);
-    if(!file) {
-        if(debug) Serial.println("Failed to open file for appending");
-        return;
-    }
-    if(file.print(message)) {
-        if(debug) Serial.println("Message appended");
-    } else {
-        if(debug) Serial.println("Append failed");
-    }
-}
-
-void appendFileWithoutPrint(fs::FS &fs, const char * path, const char * message) { //derivada da appendFile que desliga os prints
-    if(debug) Serial.printf("Appending to file: %s\n", path);
-
-    File file = fs.open(path, FILE_APPEND);
-    if(!file) {
-        if(debug) Serial.println("Failed to open file for appending");
-        return;
-    }
-    if(file.print(message)) {
-        if(debug) Serial.println("Message appended");
-    } else {
-        if(debug) Serial.println("Append failed");
-    }
-}
-
-//era o renameFile
-
-void deleteFile(fs::FS &fs, const char * path) {
-    if(debug) Serial.printf("Deleting file: %s\n", path);
-    if(fs.remove(path)) {
-        if(debug) Serial.println("File deleted");
-    } else {
-        if(debug) Serial.println("Delete failed");
-    }
-}
-
-void testFileIO(fs::FS &fs, const char * path) {
-    File file = fs.open(path);
-    static uint8_t buf[512];
-    size_t len = 0;
-    uint32_t start = millis();
-    uint32_t end = start;
-    if(file) {
-        len = file.size();
-        size_t flen = len;
-        start = millis();
-        while(len) {
-            size_t toRead = len;
-            if(toRead > 512) {
-                toRead = 512;
-            }
-            file.read(buf, toRead);
-            len -= toRead;
-        }
-        end = millis() - start;
-        if(debug) Serial.printf("%u bytes read for %u ms\n", flen, end);
-        file.close();
-    } else {
-        if(debug) Serial.println("Failed to open file for reading");
-    }
-
-    file = fs.open(path, FILE_WRITE);
-    if(!file) {
-        if(debug) Serial.println("Failed to open file for writing");
-        return;
-    }
-
-    size_t i;
-    start = millis();
-    for(i=0; i<2048; i++) {
-        file.write(buf, 512);
-    }
-    end = millis() - start;
-    if(debug) Serial.printf("%u bytes written for %u ms\n", 2048 * 512, end);
-    file.close();
-}
-
-
-
-/*void setup() {
-    randomSeed(analogRead(0));
-    delay(1000);
-    Serial.begin(115200);
-    Serial.print("\n\n");
-    if(!SD.begin()) {
-        Serial.println("Incapaz de montar o microSD");
-        return;
-    }
-    uint8_t cardType = SD.cardType();
-    if(cardType == CARD_NONE) {
-        Serial.println("Nenhum cartao de memoria encontrado");
-        return;
-    }
-    Serial.print(F("Tipo de cartao de memoria: "));
-    if(cardType == CARD_MMC) {
-        Serial.print("MMC;");
-        return;
-    } else if(cardType == CARD_SD) {
-        Serial.print("SDSC;");
-    } else if(cardType == CARD_SDHC) {
-        Serial.print("SDHC;");
-    } else {
-        Serial.print("UNKNOWN;");
-    }
-    uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-    Serial.printf(" Capacidade: %lluMB\n", cardSize);
-    separadorTarefa();
-    deleteFile(SD, "/log.txt");
-    separadorTarefa();
-    
-    listDir(SD, "/", 0);
-    separadorTarefa();
-    
-    writeFile(SD, "/log.txt", "\n\nInicio:\n");
-    separadorTarefa();
-    
-    listDir(SD, "/", 0);
-    separadorTarefa();
-    
-    for (int i = 0; i < 3; i++) {
-      appendFile(SD, "/log.txt", "Registrado com sucesso!\n");
-    }
-    separadorTarefa();
-    listDir(SD, "/", 0);
-    separadorTarefa();
-    readFile(SD, "/log.txt");
-    separadorTarefa();
-    
-    //testFileIO(SD, "/test.txt");
-    //deleteFile(SD, "/test.txt"); //remover depois
-    //separadorTarefa();
-    
-}
-*/
+    */
 };
 

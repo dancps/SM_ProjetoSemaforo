@@ -13,17 +13,18 @@ void setup() {
   Serial.begin(115200);
   u8g2.begin();
   configuraFarois();
-  //microSD.iniciar();
+  microSD.iniciar();
   tempoInicial = millis();
   lastMillis = millis();
   Serial.print("Tempo de init microSD: ");
   Serial.println(millis() - tempoInicial);
   acelerometro.init();
-  //ts.init(acelerometro.AcX_norm,acelerometro.AcY_norm,acelerometro.AcZ_norm,acelerometro.Tmp_norm,acelerometro.GyX_norm,acelerometro.GyY_norm,acelerometro.GyZ_norm);
+  acelerometro.read();
+  ts.init(acelerometro.AcX_norm,acelerometro.AcY_norm,acelerometro.AcZ_norm,acelerometro.Tmp_norm,acelerometro.GyX_norm,acelerometro.GyY_norm,acelerometro.GyZ_norm);
 }
 
 void loop() {
-  /*//Serial.println(ultrassom.distancia());  //PL REACTIVATE
+  Serial.println(ultrassom.distancia());  //PL REACTIVATE
   farolMotorista.alternaLuz(farolMotorista.vermelho, farolMotorista.verde);
   tela.exibe(1, farolMotorista.msgVerde); //primeiro parâmetro informa ajuste de fonte
   delay(1000);  //esse delay é colocado aqui para excluir um certo segundo antes da contagem
@@ -33,10 +34,10 @@ void loop() {
   //delay(farolMotorista.tempoVerde); //a ideia e substituir esses delays conforme funcoes forem adicionadas
   farolMotorista.alternaLuz(farolMotorista.verde, farolMotorista.amarelo);
   tela.exibe(1, farolMotorista.msgAmarelo);
-  delay(farolMotorista.tempoAmarelo);
+  delay(farolMotorista.tempoAmarelo); //
   farolMotorista.alternaLuz(farolMotorista.amarelo, farolMotorista.vermelho);
   tela.exibe(1, farolMotorista.msgVermelho);
-  delay(TEMPO_MUDANCA_MODAL);
+  delay(TEMPO_MUDANCA_MODAL); //
   farolPedestre.alternaLuz(farolPedestre.vermelho, farolPedestre.verde);
   long tempoInicial2 = millis(); //comeca contagem de demora de analise para descontar no resto de tempo
   analiseTrafego(); //gera um coeficiente que pode adicionar até 100% do tempo padrao
@@ -48,8 +49,9 @@ void loop() {
 
   farolPedestre.alternaLuz(farolPedestre.verde, farolPedestre.vermelho);
   farolPedestre.vermelhoPiscante(3000);
-  */
   
+  //int DELAY_TOTAL = 1000 + TEMPO_MUDANCA_MODAL + farolMotorista.tempoAmarelo + TEMPO_MUDANCA_MODAL + (farolPedestre.tempoVermelho+(farolPedestre.tempoVermelho*farolPedestre.coeficienteFluxo)-desconto);
+
   //Lê valores do acelerometro e atualiza suas variaveis
   acelerometro.read();
   acelerometro.print();
@@ -76,8 +78,8 @@ void loop() {
   info.concat("\n"); //concatena um caractere de escape correspondente a uma quebra de linha
   char entradaLog[sizeof(info)]; //cria um char para repassar ao const * char da função que dá append
   info.toCharArray(entradaLog, sizeof(entradaLog)); //pega a String e passa para o vetor de caracteres
+  Serial.println("Gravando cartão...");
   microSD.appendFileWithoutPrint(SD, "/log.txt", entradaLog); //faz append do random no arquivo
-  //
 }
 
 void configuraFarois() {
