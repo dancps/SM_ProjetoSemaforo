@@ -139,26 +139,16 @@ struct CloudService {
     void sendValues(double AcX_ts,double AcY_ts,double AcZ_ts,double Tmp_ts,double GyX_ts,double GyY_ts,double GyZ_ts){
         // Connect or reconnect to WiFi
         if(WiFi.status() != WL_CONNECTED){
-            Serial.print("Attempting to connect to SSID: ");
+            Serial.print("Tentando conectar na rede de SSID: ");
             Serial.println(SECRET_SSID);
             while(WiFi.status() != WL_CONNECTED){
                 WiFi.begin(ssid, pass);  // Connect to WPA/WPA2 network. Change this line if using open or WEP network
                 Serial.print(".");
                 delay(5000);     
             } 
-            Serial.println("\nConnected.");
+            Serial.println("\nConectado.");
         }
         
-        // set the fields with the values
-        Serial.print("Sending to : ");
-        Serial.print("AcX = "); Serial.print((float)AcX_ts);
-        Serial.print(" | AcY = "); Serial.print((float)AcY_ts);
-        Serial.print(" | AcZ = "); Serial.print((float)AcZ_ts);
-        Serial.print(" | Tmp = "); Serial.print((float)Tmp_ts);
-        Serial.print(" | GyX = "); Serial.print((float)GyX_ts);
-        Serial.print(" | GyY = "); Serial.print((float)GyY_ts);
-        Serial.print(" | GyZ = "); Serial.println((float)GyZ_ts);
-
         ThingSpeak.setField(1, (float)AcX_ts);
         ThingSpeak.setField(2, (float)AcY_ts);
         ThingSpeak.setField(3, (float)AcZ_ts);
@@ -177,16 +167,19 @@ struct CloudService {
         else if(abs(AcZ_ts-AcZ_init) > 0.8){
             myStatus = String("O poste está caido[z-axis]");
         }
+        else{
+            myStatus = String("O poste está de pé.");
+        }
         // set the status
         ThingSpeak.setStatus(myStatus);
 
         // write to the ThingSpeak channel
         int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
         if(x == 200){
-            Serial.println("Channel update successful.");
+            Serial.println("Upload de dados realizado com sucesso.");
         }
         else{
-            Serial.println("Problem updating channel. HTTP error code " + String(x));
+            Serial.println("Ocorreu um problema ao realizar o update dos dados. HTTP error code " + String(x));
         }
     }
 };
@@ -240,52 +233,49 @@ struct MPU6050 {
 
     }
     void print(){
-        Serial.print("acelerometro: ");
+        Serial.print("#l#");
         //Envia valor X do acelerometro para a serial.
-        Serial.print("AcX = "); Serial.print(AcX_norm);
+        Serial.print("AcX;"); Serial.print(AcX_norm);
         
         //Envia valor Y do acelerometro para a serial.
-        Serial.print(" | AcY = "); Serial.print(AcY_norm);
+        Serial.print(";AcY;"); Serial.print(AcY_norm);
         
         //Envia valor Z do acelerometro para a serial.
-        Serial.print(" | AcZ = "); Serial.print(AcZ_norm);
+        Serial.print(";AcZ;"); Serial.print(AcZ_norm);
         
         //Envia valor da temperatura para a serial.
         //Calcula a temperatura em graus Celsius
-        Serial.print(" | Tmp = "); Serial.print(Tmp_norm);
+        Serial.print(";Tmp;"); Serial.print(Tmp_norm);
         //Envia valor X do giroscopio para a serial.
-        Serial.print(" | GyX = "); Serial.print(GyX_norm);
+        Serial.print(";GyX;"); Serial.print(GyX_norm);
         
         //Envia valor Y do giroscopio para a serial.  
-        Serial.print(" | GyY = "); Serial.print(GyY_norm);
+        Serial.print(";GyY;"); Serial.print(GyY_norm);
          
         //Envia valor Z do giroscopio para a serial.
-        Serial.print(" | GyZ = "); Serial.println(GyZ_norm);
+        Serial.print(";GyZ;"); Serial.print(GyZ_norm);Serial.println(";#e#");
     }
-    /*
     String log() {
       String info;
-      info.reserve(40);
-      info += "";
+      //info.reserve(40);
+      info += "AcX;";
       info += AcX;
-      info += ";";
+      info += ";AcY;";
       info += AcY;
-      info += ";";
+      info += ";AcZ;";
       info += AcZ;
-      info += ";";
+      info += ";Tmp;";
       info += Tmp;
-      
-      info += ";";
+      info += ";GyX;";
       info += GyX;
-      info += ";";
+      info += ";GyY;";
       info += GyY;
-      info += ";";
+      info += ";GyZ;";
       info += GyZ;
       info += ";";
       
       return info;
     }
-*/
 };
 
 struct SemaforoPedestre {
