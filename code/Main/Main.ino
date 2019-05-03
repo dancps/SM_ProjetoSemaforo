@@ -6,6 +6,8 @@ TelaOLED tela;
 SR04 ultrassom;
 SDCard microSD;
 MPU6050 acelerometro;
+CloudService ts;
+unsigned long initTime;
 
 void setup() {
   Serial.begin(115200);
@@ -15,13 +17,14 @@ void setup() {
   pinMode(farolMotorista.verde, OUTPUT);
   pinMode(farolPedestre.vermelho, OUTPUT);
   pinMode(farolPedestre.verde, OUTPUT);
-  microSD.iniciar();
+  //microSD.iniciar();
   acelerometro.init();
+  ts.init(acelerometro.AcX_norm,acelerometro.AcY_norm,acelerometro.AcZ_norm,acelerometro.Tmp_norm,acelerometro.GyX_norm,acelerometro.GyY_norm,acelerometro.GyZ_norm);
+  initTime = millis();
 }
 
 void loop() {
-  Serial.println(ultrassom.distancia());
-  acelerometro.readAccel();
+  /*Serial.println(ultrassom.distancia());
   farolMotorista.alternaLuz(farolMotorista.vermelho, farolMotorista.verde);
   tela.exibe(1, farolMotorista.msgVerde); //primeiro parâmetro informa ajuste de fonte
   delay(1000);
@@ -42,5 +45,11 @@ void loop() {
   //  delay(300);
   //}
   farolPedestre.alternaLuz(farolPedestre.verde, farolPedestre.vermelho);
-  farolPedestre.vermelhoPiscante(3000);
+  farolPedestre.vermelhoPiscante(3000);*/
+  
+  //Lê valores do acelerometro e atualiza suas variaveis
+  acelerometro.read();
+  //Atualiza valores no Thingspeak a cada 20 segundos
+  if((millis() - initTime)%20000==0) ts.sendValues(acelerometro.AcX_norm,acelerometro.AcY_norm,acelerometro.AcZ_norm,acelerometro.Tmp_norm,acelerometro.GyX_norm,acelerometro.GyY_norm,acelerometro.GyZ_norm);
+
 }

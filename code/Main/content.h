@@ -22,6 +22,10 @@
 //SD: MISO->D19, MOSI->D23, SCK->D18, CS->D5
 //se módulo com AMS1117->alimentação pela VIN
 
+#include "ThingSpeak.h"
+#include "secrets.h"
+#include "WiFi.h"
+
 //  DEFINE
 
 #define PIN_LED_VERMELHO_PEDESTRE 12
@@ -55,7 +59,7 @@
 
 #define TEMPO_MUDANCA_MODAL 250  //diferenca quando muda de modal (carro ou pernas)
 
-bool debug = false;
+bool debug = true;
 //  GLOBAIS
 long distancia; //usada pelo HC-SR04 como armazenamento de distancia
 
@@ -89,6 +93,102 @@ struct SemaforoMotorista {
     digitalWrite(pinoApagar, LOW);
     digitalWrite(pinoAcender, HIGH);
   }
+};
+
+struct CloudService {
+    String s_ssid = SECRET_SSID;
+    String s_pass = SECRET_PASS;
+
+    //static int len_ssid = s_ssid.length();
+    //static int len_pass = s_pass.length();
+
+    const char * ssid = SECRET_SSID;   // your network SSID (name) 
+    const char * pass = SECRET_PASS;   // your network password
+    int keyIndex = 0;            // your network key Index number (needed only for WEP)
+    WiFiClient  client;
+
+    unsigned long myChannelNumber = SECRET_CH_ID;
+    const char * myWriteAPIKey = SECRET_WRITE_APIKEY;
+
+    // Variavel para 
+    double AcX_init,AcY_init,AcZ_init,Tmp_init,GyX_init,GyY_init,GyZ_init;
+
+    String myStatus = "";
+
+    void init(double AcX_i,double AcY_i,double AcZ_i,double Tmp_i,double GyX_i,double GyY_i,double GyZ_i) {
+        AcX_init = AcX_i;
+        AcY_init = AcY_i;
+        AcZ_init = AcZ_i;
+        Tmp_init = Tmp_i;
+        GyX_init = GyX_i;
+        GyY_init = GyY_i;
+        GyZ_init = GyZ_i;
+
+        if(debug) Serial.println("Conectando ao WiFi");
+        WiFi.mode(WIFI_STA);    
+        WiFi.disconnect();
+        delay(100);
+        WiFi.begin(ssid, pass);
+        while (WiFi.status() != WL_CONNECTED) {
+            delay(500);
+            Serial.print(".");
+        }
+        ThingSpeak.begin(client);  // Initialize ThingSpeak
+    }
+
+    void sendValues(double AcX_ts,double AcY_ts,double AcZ_ts,double Tmp_ts,double GyX_ts,double GyY_ts,double GyZ_ts){
+        // Connect or reconnect to WiFi
+        if(WiFi.status() != WL_CONNECTED){
+            Serial.print("Attempting to connect to SSID: ");
+            Serial.println(SECRET_SSID);
+            while(WiFi.status() != WL_CONNECTED){
+                WiFi.begin(ssid, pass);  // Connect to WPA/WPA2 network. Change this line if using open or WEP network
+                Serial.print(".");
+                delay(5000);     
+            } 
+            Serial.println("\nConnected.");
+        }
+        
+        // set the fields with the values
+        Serial.print("Sending to : ");
+        Serial.print("AcX = "); Serial.print((float)AcX_ts);
+        Serial.print(" | AcY = "); Serial.print((float)AcY_ts);
+        Serial.print(" | AcZ = "); Serial.print((float)AcZ_ts);
+        Serial.print(" | Tmp = "); Serial.print((float)Tmp_ts);
+        Serial.print(" | GyX = "); Serial.print((float)GyX_ts);
+        Serial.print(" | GyY = "); Serial.print((float)GyY_ts);
+        Serial.print(" | GyZ = "); Serial.println((float)GyZ_ts);
+
+        ThingSpeak.setField(1, (float)AcX_ts);
+        ThingSpeak.setField(2, (float)AcY_ts);
+        ThingSpeak.setField(3, (float)AcZ_ts);
+        ThingSpeak.setField(4, (float)Tmp_ts);
+        ThingSpeak.setField(5, (float)GyX_ts);
+        ThingSpeak.setField(6, (float)GyY_ts);
+        ThingSpeak.setField(7, (float)GyZ_ts);
+
+        // figure out the status message
+        if(abs(AcX_ts-AcX_init) > 0.8){
+            myStatus = String("O poste está caido[x-axis]");
+        }
+        else if(abs(AcY_ts-AcY_init) > 0.8){
+            myStatus = String("O poste está caido[y-axis]");
+        }
+        else if(abs(AcZ_ts-AcZ_init) > 0.8){
+            myStatus = String("O poste está caido[z-axis]");
+        }
+        // set the status
+        ThingSpeak.setStatus(myStatus);
+
+        // write to the ThingSpeak channel
+        int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+        if(x == 200){
+            Serial.println("Channel update successful.");
+        }
+        else{
+            Serial.println("Problem updating channel. HTTP error code " + String(x));
+        }
+    }
 };
 
 struct MPU6050 {
@@ -233,218 +333,218 @@ struct SR04 {
 struct SDCard {
 
 
-void iniciar() {
-randomSeed(analogRead(0));
-    if(!SD.begin()) {
-        Serial.println("Incapaz de montar o microSD");
-        return;
-    }
-    uint8_t cardType = SD.cardType();
-
-    if(cardType == CARD_NONE) {
-        Serial.println("Nenhum cartao de memoria encontrado");
-        return;
-    }
-
-    if(debug){Serial.print(F("Tipo de cartao de memoria: "));
-        if(cardType == CARD_MMC) {
-            Serial.print("MMC;");
+    void iniciar() {
+    randomSeed(analogRead(0));
+        if(!SD.begin()) {
+            Serial.println("Incapaz de montar o microSD");
             return;
-        } else if(cardType == CARD_SD) {
-            Serial.print("SDSC;");
-        } else if(cardType == CARD_SDHC) {
-            Serial.print("SDHC;");
-        } else {
-            Serial.print("UNKNOWN;");
-    }}
-
-    uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-    if(debug) Serial.printf(" Capacidade: %lluMB\n", cardSize);
-    if(debug) separadorTarefa();
-
-    deleteFile(SD, "/log.txt");
-    if(debug) separadorTarefa();
-    
-    if(debug) listDir(SD, "/", 0);
-    if(debug) separadorTarefa();
-    
-    writeFile(SD, "/log.txt", "\n\nInicio:\n");
-    if(debug) separadorTarefa();
-    
-    if(debug) listDir(SD, "/", 0);
-    if(debug) separadorTarefa();
-    
-    if(debug) {
-        for (int i = 0; i < 3; i++) {
-          appendFile(SD, "/log.txt", "Registrado com sucesso!\n");
         }
-        separadorTarefa();
-    }
+        uint8_t cardType = SD.cardType();
 
-    if(debug) {
-        listDir(SD, "/", 0);
-        separadorTarefa();
-    }
+        if(cardType == CARD_NONE) {
+            Serial.println("Nenhum cartao de memoria encontrado");
+            return;
+        }
 
-    if(debug) {
-        readFile(SD, "/log.txt");
-        separadorTarefa();
-    }
-    
-    //testFileIO(SD, "/test.txt");
+        if(debug){Serial.print(F("Tipo de cartao de memoria: "));
+            if(cardType == CARD_MMC) {
+                Serial.print("MMC;");
+                return;
+            } else if(cardType == CARD_SD) {
+                Serial.print("SDSC;");
+            } else if(cardType == CARD_SDHC) {
+                Serial.print("SDHC;");
+            } else {
+                Serial.print("UNKNOWN;");
+        }}
 
-    //deleteFile(SD, "/test.txt"); //remover depois
-    //separadorTarefa();
-}
+        uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+        if(debug) Serial.printf(" Capacidade: %lluMB\n", cardSize);
+        if(debug) separadorTarefa();
 
-void separadorTarefa() {
-  Serial.println("\n___________________________________________");
-}
-
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
-    Serial.printf("Listing directory: %s\n", dirname);
-
-    File root = fs.open(dirname);
-    if(!root) {
-        Serial.println("Failed to open directory");
-        return;
-    }
-    if(!root.isDirectory()) {
-        Serial.println("Not a directory");
-        return;
-    }
-
-    File file = root.openNextFile();
-    while(file) {
-        if(file.isDirectory()) {
-            Serial.print(" DIR : ");
-            Serial.println(file.name());
-            if(levels) {
-                listDir(fs, file.name(), levels -1);
+        deleteFile(SD, "/log.txt");
+        if(debug) separadorTarefa();
+        
+        if(debug) listDir(SD, "/", 0);
+        if(debug) separadorTarefa();
+        
+        writeFile(SD, "/log.txt", "\n\nInicio:\n");
+        if(debug) separadorTarefa();
+        
+        if(debug) listDir(SD, "/", 0);
+        if(debug) separadorTarefa();
+        
+        if(debug) {
+            for (int i = 0; i < 3; i++) {
+              appendFile(SD, "/log.txt", "Registrado com sucesso!\n");
             }
-        } else {
-            Serial.print(" FILE: ");
-            Serial.print(file.name());
-            Serial.print(" SIZE: ");
-            Serial.println(file.size());
+            separadorTarefa();
         }
-        file = root.openNextFile();
+
+        if(debug) {
+            listDir(SD, "/", 0);
+            separadorTarefa();
+        }
+
+        if(debug) {
+            readFile(SD, "/log.txt");
+            separadorTarefa();
+        }
+        
+        //testFileIO(SD, "/test.txt");
+
+        //deleteFile(SD, "/test.txt"); //remover depois
+        //separadorTarefa();
     }
-}
 
-//era o createDir
-//era o removeDir
-
-void readFile(fs::FS &fs, const char * path) {
-    if(debug) Serial.printf("Reading file: %s\n", path);
-
-    File file = fs.open(path);
-    if(!file) {
-        if(debug) Serial.println("Failed to open file for reading");
-        return;
+    void separadorTarefa() {
+      Serial.println("\n___________________________________________");
     }
 
-    if(debug) Serial.print("Read from file: ");
-    while(file.available()) {
-        Serial.write(file.read());
+    void listDir(fs::FS &fs, const char * dirname, uint8_t levels) {
+        Serial.printf("Listing directory: %s\n", dirname);
+
+        File root = fs.open(dirname);
+        if(!root) {
+            Serial.println("Failed to open directory");
+            return;
+        }
+        if(!root.isDirectory()) {
+            Serial.println("Not a directory");
+            return;
+        }
+
+        File file = root.openNextFile();
+        while(file) {
+            if(file.isDirectory()) {
+                Serial.print(" DIR : ");
+                Serial.println(file.name());
+                if(levels) {
+                    listDir(fs, file.name(), levels -1);
+                }
+            } else {
+                Serial.print(" FILE: ");
+                Serial.print(file.name());
+                Serial.print(" SIZE: ");
+                Serial.println(file.size());
+            }
+            file = root.openNextFile();
+        }
     }
-}
 
-void writeFile(fs::FS &fs, const char * path, const char * message) {
-    if(debug) Serial.printf("Writing file: %s\n", path);
+    //era o createDir
+    //era o removeDir
 
-    File file = fs.open(path, FILE_WRITE);
-    if(!file) {
-        if(debug) Serial.println("Failed to open file for writing");
-        return;
+    void readFile(fs::FS &fs, const char * path) {
+        if(debug) Serial.printf("Reading file: %s\n", path);
+
+        File file = fs.open(path);
+        if(!file) {
+            if(debug) Serial.println("Failed to open file for reading");
+            return;
+        }
+
+        if(debug) Serial.print("Read from file: ");
+        while(file.available()) {
+            Serial.write(file.read());
+        }
     }
-    if(file.print(message)) {
-        if(debug) Serial.println("File written");
-    } else {
-        if(debug) Serial.println("Write failed");
+
+    void writeFile(fs::FS &fs, const char * path, const char * message) {
+        if(debug) Serial.printf("Writing file: %s\n", path);
+
+        File file = fs.open(path, FILE_WRITE);
+        if(!file) {
+            if(debug) Serial.println("Failed to open file for writing");
+            return;
+        }
+        if(file.print(message)) {
+            if(debug) Serial.println("File written");
+        } else {
+            if(debug) Serial.println("Write failed");
+        }
     }
-}
 
-void appendFile(fs::FS &fs, const char * path, const char * message) {
-    if(debug) Serial.printf("Appending to file: %s\n", path);
+    void appendFile(fs::FS &fs, const char * path, const char * message) {
+        if(debug) Serial.printf("Appending to file: %s\n", path);
 
-    File file = fs.open(path, FILE_APPEND);
-    if(!file) {
-        if(debug) Serial.println("Failed to open file for appending");
-        return;
+        File file = fs.open(path, FILE_APPEND);
+        if(!file) {
+            if(debug) Serial.println("Failed to open file for appending");
+            return;
+        }
+        if(file.print(message)) {
+            if(debug) Serial.println("Message appended");
+        } else {
+            if(debug) Serial.println("Append failed");
+        }
     }
-    if(file.print(message)) {
-        if(debug) Serial.println("Message appended");
-    } else {
-        if(debug) Serial.println("Append failed");
+
+    void appendFileWithoutPrint(fs::FS &fs, const char * path, const char * message) { //derivada da appendFile que desliga os prints
+        if(debug) Serial.printf("Appending to file: %s\n", path);
+
+        File file = fs.open(path, FILE_APPEND);
+        if(!file) {
+            if(debug) Serial.println("Failed to open file for appending");
+            return;
+        }
+        if(file.print(message)) {
+            if(debug) Serial.println("Message appended");
+        } else {
+            if(debug) Serial.println("Append failed");
+        }
     }
-}
 
-void appendFileWithoutPrint(fs::FS &fs, const char * path, const char * message) { //derivada da appendFile que desliga os prints
-    if(debug) Serial.printf("Appending to file: %s\n", path);
+    //era o renameFile
 
-    File file = fs.open(path, FILE_APPEND);
-    if(!file) {
-        if(debug) Serial.println("Failed to open file for appending");
-        return;
+    void deleteFile(fs::FS &fs, const char * path) {
+        if(debug) Serial.printf("Deleting file: %s\n", path);
+        if(fs.remove(path)) {
+            if(debug) Serial.println("File deleted");
+        } else {
+            if(debug) Serial.println("Delete failed");
+        }
     }
-    if(file.print(message)) {
-        if(debug) Serial.println("Message appended");
-    } else {
-        if(debug) Serial.println("Append failed");
-    }
-}
 
-//era o renameFile
+    void testFileIO(fs::FS &fs, const char * path) {
+        File file = fs.open(path);
+        static uint8_t buf[512];
+        size_t len = 0;
+        uint32_t start = millis();
+        uint32_t end = start;
+        if(file) {
+            len = file.size();
+            size_t flen = len;
+            start = millis();
+            while(len) {
+                size_t toRead = len;
+                if(toRead > 512) {
+                    toRead = 512;
+                }
+                file.read(buf, toRead);
+                len -= toRead;
+            }
+            end = millis() - start;
+            if(debug) Serial.printf("%u bytes read for %u ms\n", flen, end);
+            file.close();
+        } else {
+            if(debug) Serial.println("Failed to open file for reading");
+        }
 
-void deleteFile(fs::FS &fs, const char * path) {
-    if(debug) Serial.printf("Deleting file: %s\n", path);
-    if(fs.remove(path)) {
-        if(debug) Serial.println("File deleted");
-    } else {
-        if(debug) Serial.println("Delete failed");
-    }
-}
+        file = fs.open(path, FILE_WRITE);
+        if(!file) {
+            if(debug) Serial.println("Failed to open file for writing");
+            return;
+        }
 
-void testFileIO(fs::FS &fs, const char * path) {
-    File file = fs.open(path);
-    static uint8_t buf[512];
-    size_t len = 0;
-    uint32_t start = millis();
-    uint32_t end = start;
-    if(file) {
-        len = file.size();
-        size_t flen = len;
+        size_t i;
         start = millis();
-        while(len) {
-            size_t toRead = len;
-            if(toRead > 512) {
-                toRead = 512;
-            }
-            file.read(buf, toRead);
-            len -= toRead;
+        for(i=0; i<2048; i++) {
+            file.write(buf, 512);
         }
         end = millis() - start;
-        if(debug) Serial.printf("%u bytes read for %u ms\n", flen, end);
+        if(debug) Serial.printf("%u bytes written for %u ms\n", 2048 * 512, end);
         file.close();
-    } else {
-        if(debug) Serial.println("Failed to open file for reading");
-    }
-
-    file = fs.open(path, FILE_WRITE);
-    if(!file) {
-        if(debug) Serial.println("Failed to open file for writing");
-        return;
-    }
-
-    size_t i;
-    start = millis();
-    for(i=0; i<2048; i++) {
-        file.write(buf, 512);
-    }
-    end = millis() - start;
-    if(debug) Serial.printf("%u bytes written for %u ms\n", 2048 * 512, end);
-    file.close();
 }
 
 
