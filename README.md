@@ -1,5 +1,5 @@
 # Projeto de Semáforo
-Projeto da disciplina Sistemas Microprocessados.
+Projeto da disciplina Sistemas Microprocessados. Este projeto é a implementação de um sistema automatizado de semáforos usando o microprocessador ESP32. 
 
 # Componentes
 * ESP32
